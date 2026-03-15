@@ -54,6 +54,8 @@ type model struct {
 	width  int
 	height int
 
+	confirmStop bool
+
 	errMsg     string
 	successMsg string
 }
@@ -142,7 +144,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // --- Dashboard ---
 
 func (m model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	key := msg.String()
+
+	// If waiting for stop confirmation, only x confirms — anything else cancels
+	if m.confirmStop {
+		m.confirmStop = false
+		if key == "x" {
+			if err := engine.StopSession(m.cfg, m.state); err != nil {
+				m.errMsg = err.Error()
+			} else {
+				m.successMsg = "Session stopped"
+			}
+			m.status = engine.GetStatus(m.cfg, m.state)
+		}
+		return m, nil
+	}
+
+	switch key {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "p":
@@ -164,15 +182,11 @@ func (m model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "x":
 		if m.status.Active {
-			if err := engine.StopSession(m.cfg, m.state); err != nil {
-				m.errMsg = err.Error()
-			} else {
-				m.successMsg = "Session stopped"
-			}
-			m.status = engine.GetStatus(m.cfg, m.state)
-		} else {
-			m.errMsg = "No active session"
+			m.confirmStop = true
+			m.errMsg = "Press x again to stop session"
+			return m, nil
 		}
+		m.errMsg = "No active session"
 		return m, nil
 	case "h":
 		m.view = viewHistory
@@ -531,8 +545,8 @@ func (m model) viewDashboard() string {
 		rows := []struct{ k, v string }{
 			{"Mode    ", m.status.Mode},
 			{"Label   ", m.status.Label},
-			{"Started ", m.status.StartedAt.Format("3:04 PM")},
-			{"Ends    ", m.status.EndsAt.Format("3:04 PM")},
+			{"Started ", m.cfg.FormatTime(m.status.StartedAt)},
+			{"Ends    ", m.cfg.FormatTime(m.status.EndsAt)},
 			{"PID     ", fmt.Sprintf("%d", m.status.PID)},
 			{"Flags   ", m.status.Flags},
 		}
@@ -556,7 +570,7 @@ func (m model) viewDashboard() string {
 
 	if m.state.Scheduled != nil {
 		w := m.state.Scheduled
-		nextStr := fmt.Sprintf("%s – %s", w.StartsAt.Format("3:04 PM"), w.EndsAt.Format("3:04 PM"))
+		nextStr := fmt.Sprintf("%s – %s", m.cfg.FormatTime(w.StartsAt), m.cfg.FormatTime(w.EndsAt))
 		if w.Label != "" {
 			nextStr = fmt.Sprintf("%s [%s]", nextStr, w.Label)
 		}
@@ -724,8 +738,8 @@ func (m model) viewSchedule() string {
 		w := m.state.Scheduled
 		b.WriteString(fmt.Sprintf("  %s  %s – %s",
 			labelStyle.Render("Pending"),
-			valueStyle.Render(w.StartsAt.Format("3:04 PM")),
-			valueStyle.Render(w.EndsAt.Format("3:04 PM"))))
+			valueStyle.Render(m.cfg.FormatTime(w.StartsAt)),
+			valueStyle.Render(m.cfg.FormatTime(w.EndsAt))))
 		if w.Label != "" {
 			b.WriteString(fmt.Sprintf("  %s", labelStyle.Render("["+w.Label+"]")))
 		}

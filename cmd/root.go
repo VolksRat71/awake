@@ -188,8 +188,8 @@ var statusCmd = &cobra.Command{
 		if status.Label != "" {
 			fmt.Printf("  Label:     %s\n", status.Label)
 		}
-		fmt.Printf("  Started:   %s\n", status.StartedAt.Format("3:04 PM"))
-		fmt.Printf("  Ends:      %s\n", status.EndsAt.Format("3:04 PM"))
+		fmt.Printf("  Started:   %s\n", cfg.FormatTime(status.StartedAt))
+		fmt.Printf("  Ends:      %s\n", cfg.FormatTime(status.EndsAt))
 		fmt.Printf("  Remaining: %s\n", engine.FormatDuration(status.TimeRemaining))
 		fmt.Printf("  PID:       %d\n", status.PID)
 		fmt.Printf("  Command:   %s\n", status.Command)
@@ -337,13 +337,14 @@ var scheduleCmd = &cobra.Command{
 			return nil
 		}
 
+		cfg, _, _ := load()
 		w := st.Scheduled
 		lbl := w.Label
 		if lbl != "" {
 			lbl = fmt.Sprintf(" [%s]", lbl)
 		}
 		fmt.Printf("Scheduled: %s – %s%s\n",
-			w.StartsAt.Format("3:04 PM"), w.EndsAt.Format("3:04 PM"), lbl)
+			cfg.FormatTime(w.StartsAt), cfg.FormatTime(w.EndsAt), lbl)
 		return nil
 	},
 }

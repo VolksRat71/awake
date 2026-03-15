@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const configDir = ".config/awake"
@@ -33,9 +34,18 @@ type NotificationConfig struct {
 type Config struct {
 	Workday       WorkdayConfig      `json:"workday"`
 	Flags         string             `json:"flags"`
+	TimeFormat    string             `json:"time_format"` // "12h" (default) or "24h"
 	Presets       []Preset           `json:"presets"`
 	Notifications NotificationConfig `json:"notifications"`
 	MaxDurationH  int                `json:"max_duration_hours"`
+}
+
+// FormatTime renders a time.Time according to the user's time_format preference.
+func (c *Config) FormatTime(t time.Time) string {
+	if c.TimeFormat == "24h" {
+		return t.Format("15:04")
+	}
+	return t.Format("3:04 PM")
 }
 
 // DefaultConfig returns sensible defaults for a new installation.
@@ -46,7 +56,8 @@ func DefaultConfig() *Config {
 			End:   "17:00",
 			Days:  []int{1, 2, 3, 4, 5},
 		},
-		Flags: "-dimsu",
+		Flags:      "-dimsu",
+		TimeFormat: "12h",
 		Presets: []Preset{
 			{Name: "30 minutes", Minutes: 30},
 			{Name: "1 hour", Minutes: 60},
@@ -94,6 +105,12 @@ func LoadConfig() (*Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
+
+	// Backfill defaults for fields added after initial config creation
+	if cfg.TimeFormat == "" {
+		cfg.TimeFormat = "12h"
+	}
+
 	return &cfg, nil
 }
 

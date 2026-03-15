@@ -268,7 +268,7 @@ func ScheduleWindow(cfg *Config, st *State, startsAt, endsAt time.Time, label st
 	if IsActive(st) {
 		if st.Active.EndsAt.After(endsAt) || st.Active.EndsAt.Equal(endsAt) {
 			return fmt.Errorf("current session already covers this window (ends %s)",
-				st.Active.EndsAt.Format("3:04 PM"))
+				cfg.FormatTime(st.Active.EndsAt))
 		}
 	}
 
@@ -298,7 +298,7 @@ func ScheduleWindow(cfg *Config, st *State, startsAt, endsAt time.Time, label st
 	}
 
 	if cfg.Notifications.Enabled {
-		msg := fmt.Sprintf("Scheduled %s – %s", startsAt.Format("3:04 PM"), endsAt.Format("3:04 PM"))
+		msg := fmt.Sprintf("Scheduled %s – %s", cfg.FormatTime(startsAt), cfg.FormatTime(endsAt))
 		if label != "" {
 			msg = fmt.Sprintf("[%s] %s", label, msg)
 		}
