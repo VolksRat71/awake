@@ -418,6 +418,14 @@ var optionDefs = []optionDef{
 	{"max_duration", "Max duration (hours)", false},
 }
 
+func (m model) formatConfigTime(raw string) string {
+	t, err := time.Parse("15:04", raw)
+	if err != nil {
+		return raw
+	}
+	return m.cfg.FormatTime(t)
+}
+
 func (m model) optionValue(idx int) string {
 	switch optionDefs[idx].key {
 	case "time_format":
@@ -433,9 +441,9 @@ func (m model) optionValue(idx int) string {
 	case "warn_minutes":
 		return fmt.Sprintf("%d min", m.cfg.Notifications.WarnMinutes)
 	case "workday_start":
-		return m.cfg.Workday.Start
+		return m.formatConfigTime(m.cfg.Workday.Start)
 	case "workday_end":
-		return m.cfg.Workday.End
+		return m.formatConfigTime(m.cfg.Workday.End)
 	case "flags":
 		return m.cfg.Flags
 	case "max_duration":
