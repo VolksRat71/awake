@@ -6,25 +6,32 @@
 
 A macOS utility that keeps your Mac from sleeping. Uses `caffeinate` under the hood with a fast CLI for muscle memory and a terminal UI for when you want a control panel.
 
-## Install
+## Quickstart
 
 ### Homebrew (recommended)
 
 ```bash
 brew tap VolksRat71/awake https://github.com/VolksRat71/awake
 brew install awake
-awake install
 ```
 
-### Binary release
+That's it. Homebrew installs the binary, sets up the daemon, and configures notifications automatically.
 
-Download the latest release from [GitHub Releases](https://github.com/VolksRat71/awake/releases), then:
+### GitHub Release
 
 ```bash
+# Download the latest release (Apple Silicon)
+gh release download --repo VolksRat71/awake --pattern "*arm64*tar.gz"
+
+# For Intel Macs, use *amd64* instead
+
+# Extract and install
 tar xzf awake-*.tar.gz
 sudo cp awake /usr/local/bin/
 awake install
 ```
+
+Prebuilt binaries for both Apple Silicon (arm64) and Intel (amd64) are available on the [releases page](https://github.com/VolksRat71/awake/releases).
 
 ### From source
 
@@ -38,10 +45,15 @@ sudo cp awake /usr/local/bin/
 awake install
 ```
 
-`awake install` does three things:
+### What `awake install` does
+
+When installing via GitHub release or from source, `awake install` handles the rest:
+
 1. Creates a **launchd service** so the daemon starts on boot
 2. Installs **terminal-notifier** via Homebrew (if not present) for rich notifications
 3. Builds a custom **Awake.app** bundle with the awake icon for branded notifications
+
+Homebrew runs this automatically via `post_install` — no extra step needed.
 
 ## CLI
 
