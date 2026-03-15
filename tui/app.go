@@ -22,6 +22,7 @@ const (
 	viewHistory
 	viewLabel
 	viewSchedule
+	viewOptions
 )
 
 type tickMsg time.Time
@@ -56,6 +57,10 @@ type model struct {
 
 	confirmStop bool
 
+	optionsCursor  int
+	optionsEditing bool
+	optionsInput   textinput.Model
+
 	errMsg     string
 	successMsg string
 }
@@ -86,6 +91,10 @@ func newModel(cfg *engine.Config, state *engine.State) model {
 	ei.CharLimit = 5
 	ei.Width = 10
 
+	oi := textinput.New()
+	oi.CharLimit = 20
+	oi.Width = 20
+
 	return model{
 		cfg:           cfg,
 		state:         state,
@@ -96,6 +105,7 @@ func newModel(cfg *engine.Config, state *engine.State) model {
 		labelInput:      li,
 		schedStartInput: si,
 		schedEndInput:   ei,
+		optionsInput:    oi,
 	}
 }
 
@@ -135,6 +145,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateLabel(msg)
 		case viewSchedule:
 			return m.updateSchedule(msg)
+		case viewOptions:
+			return m.updateOptions(msg)
 		}
 	}
 
@@ -199,6 +211,11 @@ func (m model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.schedFocusEnd = false
 		m.schedStartInput.Focus()
 		return m, textinput.Blink
+	case "o":
+		m.view = viewOptions
+		m.optionsCursor = 0
+		m.optionsEditing = false
+		return m, nil
 	}
 	return m, nil
 }
@@ -383,6 +400,164 @@ func (m model) updateHistory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// --- Options ---
+
+type optionDef struct {
+	key    string // config field name
+	label  string // display label
+	toggle bool   // true = toggle on enter, false = text edit
+}
+
+var optionDefs = []optionDef{
+	{"time_format", "Time format", true},
+	{"notifications", "Notifications", true},
+	{"warn_minutes", "Warn before end", false},
+	{"workday_start", "Workday start", false},
+	{"workday_end", "Workday end", false},
+	{"flags", "Caffeinate flags", false},
+	{"max_duration", "Max duration (hours)", false},
+}
+
+func (m model) optionValue(idx int) string {
+	switch optionDefs[idx].key {
+	case "time_format":
+		if m.cfg.TimeFormat == "24h" {
+			return "24h"
+		}
+		return "12h"
+	case "notifications":
+		if m.cfg.Notifications.Enabled {
+			return "enabled"
+		}
+		return "disabled"
+	case "warn_minutes":
+		return fmt.Sprintf("%d min", m.cfg.Notifications.WarnMinutes)
+	case "workday_start":
+		return m.cfg.Workday.Start
+	case "workday_end":
+		return m.cfg.Workday.End
+	case "flags":
+		return m.cfg.Flags
+	case "max_duration":
+		return fmt.Sprintf("%d", m.cfg.MaxDurationH)
+	}
+	return ""
+}
+
+func (m model) updateOptions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.optionsEditing {
+		switch msg.String() {
+		case "esc":
+			m.optionsEditing = false
+			return m, nil
+		case "enter":
+			val := m.optionsInput.Value()
+			m.applyOption(m.optionsCursor, val)
+			m.optionsEditing = false
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.optionsInput, cmd = m.optionsInput.Update(msg)
+		return m, cmd
+	}
+
+	switch msg.String() {
+	case "esc":
+		m.view = viewDashboard
+		return m, nil
+	case "up", "k":
+		if m.optionsCursor > 0 {
+			m.optionsCursor--
+		}
+		return m, nil
+	case "down", "j":
+		if m.optionsCursor < len(optionDefs)-1 {
+			m.optionsCursor++
+		}
+		return m, nil
+	case "enter":
+		opt := optionDefs[m.optionsCursor]
+		if opt.toggle {
+			m.toggleOption(m.optionsCursor)
+			return m, nil
+		}
+		// Start editing
+		m.optionsEditing = true
+		m.optionsInput.Reset()
+		m.optionsInput.SetValue(m.optionRawValue(m.optionsCursor))
+		m.optionsInput.Focus()
+		return m, textinput.Blink
+	}
+	return m, nil
+}
+
+func (m model) toggleOption(idx int) {
+	switch optionDefs[idx].key {
+	case "time_format":
+		if m.cfg.TimeFormat == "24h" {
+			m.cfg.TimeFormat = "12h"
+		} else {
+			m.cfg.TimeFormat = "24h"
+		}
+	case "notifications":
+		m.cfg.Notifications.Enabled = !m.cfg.Notifications.Enabled
+	}
+	m.cfg.Save()
+}
+
+func (m model) optionRawValue(idx int) string {
+	switch optionDefs[idx].key {
+	case "warn_minutes":
+		return fmt.Sprintf("%d", m.cfg.Notifications.WarnMinutes)
+	case "workday_start":
+		return m.cfg.Workday.Start
+	case "workday_end":
+		return m.cfg.Workday.End
+	case "flags":
+		return m.cfg.Flags
+	case "max_duration":
+		return fmt.Sprintf("%d", m.cfg.MaxDurationH)
+	}
+	return ""
+}
+
+func (m model) applyOption(idx int, val string) {
+	switch optionDefs[idx].key {
+	case "warn_minutes":
+		var n int
+		if _, err := fmt.Sscanf(val, "%d", &n); err == nil && n > 0 {
+			m.cfg.Notifications.WarnMinutes = n
+		} else {
+			m.errMsg = "Enter a positive number"
+			return
+		}
+	case "workday_start":
+		if _, err := time.Parse("15:04", val); err != nil {
+			m.errMsg = "Use HH:MM format"
+			return
+		}
+		m.cfg.Workday.Start = val
+	case "workday_end":
+		if _, err := time.Parse("15:04", val); err != nil {
+			m.errMsg = "Use HH:MM format"
+			return
+		}
+		m.cfg.Workday.End = val
+	case "flags":
+		m.cfg.Flags = val
+	case "max_duration":
+		var n int
+		if _, err := fmt.Sscanf(val, "%d", &n); err == nil && n > 0 {
+			m.cfg.MaxDurationH = n
+		} else {
+			m.errMsg = "Enter a positive number"
+			return
+		}
+	}
+	m.cfg.Save()
+	m.successMsg = "Saved"
+}
+
 // --- Schedule ---
 
 func (m model) updateSchedule(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -510,6 +685,8 @@ func (m model) View() string {
 		return m.viewLabel()
 	case viewSchedule:
 		return m.viewSchedule()
+	case viewOptions:
+		return m.viewOptions()
 	}
 	return ""
 }
@@ -580,10 +757,10 @@ func (m model) viewDashboard() string {
 	m.writeMessages(&b)
 
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("  %s presets  %s custom  %s extend  %s schedule\n",
+	b.WriteString(fmt.Sprintf("  %s presets  %s custom   %s extend   %s schedule\n",
 		hotkeyStyle.Render("p"), hotkeyStyle.Render("c"), hotkeyStyle.Render("e"), hotkeyStyle.Render("s")))
-	b.WriteString(fmt.Sprintf("  %s history  %s stop    %s quit\n",
-		hotkeyStyle.Render("h"), hotkeyStyle.Render("x"), hotkeyStyle.Render("q")))
+	b.WriteString(fmt.Sprintf("  %s history  %s options  %s stop     %s quit\n",
+		hotkeyStyle.Render("h"), hotkeyStyle.Render("o"), hotkeyStyle.Render("x"), hotkeyStyle.Render("q")))
 
 	b.WriteString("\n")
 	if m.status.Active {
@@ -725,6 +902,50 @@ func (m model) viewLabel() string {
 
 	b.WriteString(fmt.Sprintf("\n  %s start   %s cancel\n",
 		hotkeyStyle.Render("enter"), hotkeyStyle.Render("esc")))
+
+	return borderStyle.Width(m.boxWidth()).Render(b.String())
+}
+
+func (m model) viewOptions() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("OPTIONS") + "\n\n")
+
+	for i, opt := range optionDefs {
+		cursor := "  "
+		style := normalStyle
+		if i == m.optionsCursor {
+			cursor = "▸ "
+			style = selectedStyle
+		}
+
+		val := m.optionValue(i)
+
+		if m.optionsEditing && i == m.optionsCursor {
+			b.WriteString(fmt.Sprintf("  %s%-20s %s\n", cursor,
+				style.Render(opt.label), m.optionsInput.View()))
+		} else {
+			hint := ""
+			if opt.toggle {
+				hint = labelStyle.Render("  ⏎ toggle")
+			}
+			b.WriteString(fmt.Sprintf("  %s%-20s %s%s\n", cursor,
+				style.Render(opt.label), valueStyle.Render(val), hint))
+		}
+	}
+
+	m.writeMessages(&b)
+
+	b.WriteString("\n")
+	if m.optionsEditing {
+		b.WriteString(fmt.Sprintf("  %s save   %s cancel\n",
+			hotkeyStyle.Render("enter"), hotkeyStyle.Render("esc")))
+	} else {
+		b.WriteString(fmt.Sprintf("  %s select   %s edit/toggle   %s back\n",
+			hotkeyStyle.Render("↑↓"), hotkeyStyle.Render("enter"), hotkeyStyle.Render("esc")))
+	}
+
+	b.WriteString(fmt.Sprintf("\n  %s\n", footerStyle.Render("changes save to ~/.config/awake/config.json")))
 
 	return borderStyle.Width(m.boxWidth()).Render(b.String())
 }
