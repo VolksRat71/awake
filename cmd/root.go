@@ -295,16 +295,24 @@ var installCmd = &cobra.Command{
 
 		fmt.Println("Daemon started")
 
-		// Install terminal-notifier for rich notifications with icon
+		// Set up branded notifications
 		if _, err := exec.LookPath("terminal-notifier"); err != nil {
-			fmt.Println("\nInstalling terminal-notifier for notification icons...")
+			fmt.Println("\nInstalling terminal-notifier for notifications...")
 			if out, err := exec.Command("brew", "install", "terminal-notifier").CombinedOutput(); err != nil {
 				fmt.Printf("Could not install terminal-notifier: %s\n", string(out))
-				fmt.Println("Notifications will work but without the app icon.")
+				fmt.Println("Notifications will work but without the awake icon.")
 				fmt.Println("Install manually: brew install terminal-notifier")
-			} else {
-				fmt.Println("terminal-notifier installed")
+				return nil
 			}
+			fmt.Println("terminal-notifier installed")
+		}
+
+		fmt.Println("Building Awake.app notification bundle...")
+		if err := engine.InstallNotifierApp(); err != nil {
+			fmt.Printf("Warning: %v\n", err)
+			fmt.Println("Notifications will work but with the default terminal-notifier icon.")
+		} else {
+			fmt.Println("Awake.app created — notifications will show the awake icon")
 		}
 
 		return nil
