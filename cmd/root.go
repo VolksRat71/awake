@@ -321,12 +321,23 @@ var installCmd = &cobra.Command{
 			}
 		}
 
-		// Give Awake.app a moment to register with macOS
-		time.Sleep(2 * time.Second)
+		// Open System Settings to the Awake notification page
+		fmt.Println("\nOpening notification settings for Awake...")
+		exec.Command("open", "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.awake.notifier").Run()
 
+		fmt.Println("")
+		fmt.Println("  Enable \"Allow Notifications\" for Awake in System Settings,")
+		fmt.Println("  then press Enter to confirm.")
+		fmt.Println("")
+		fmt.Scanln()
+
+		// Send a test notification to confirm it works
 		if freshInstall {
-			engine.Notify("Awake", "Thanks for the download! Support FOSS by starring the repo ✌️")
+			engine.NotifySync("Awake", "Thanks for the download! Support FOSS by starring the repo ✌️")
+		} else {
+			engine.NotifySync("Awake", "Awake is ready")
 		}
+		fmt.Println("Setup complete.")
 
 		return nil
 	},

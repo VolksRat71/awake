@@ -70,11 +70,33 @@ func InstallNotifierApp() error {
 
 	exec.Command("touch", dest).Run()
 
-	// Register the app with macOS by opening it once — this triggers the
-	// notification permission prompt and registers the bundle ID.
-	exec.Command("open", dest).Run()
+	// Re-sign the app so macOS accepts notifications from it.
+	// Without this, the modified bundle has a broken signature and
+	// macOS Sequoia/Tahoe silently drops all notifications.
+	if out, err := exec.Command("codesign", "--force", "--deep", "--sign", "-", dest).CombinedOutput(); err != nil {
+		return fmt.Errorf("codesign failed: %s", string(out))
+	}
 
 	return nil
+}
+
+// NotifySync sends a notification and waits for delivery. Used during install
+// so the Awake.app gets registered with macOS notification center on first use.
+func NotifySync(title, message string) {
+	appPath := awakeAppPath()
+	if _, err := os.Stat(appPath); err == nil {
+		exec.Command(awakeAppBinary(),
+			"-title", title,
+			"-message", message,
+			"-group", "com.awake",
+			"-sound", "default",
+			"-sender", "com.awake.notifier",
+		).Run()
+		return
+	}
+
+	script := fmt.Sprintf(`display notification %q with title %q sound name "default"`, message, title)
+	exec.Command("osascript", "-e", script).Run()
 }
 
 func findTerminalNotifierApp() (string, error) {

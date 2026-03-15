@@ -62,10 +62,16 @@ func Run() {
 	}
 	log.Println("awaked starting")
 
-	// Startup notification
+	// Startup notification — skip if install just happened (within 30s)
+	// to avoid stomping the welcome notification
 	cfg, err := engine.LoadConfig()
 	if err == nil && cfg.Notifications.Enabled {
-		engine.Notify("Awake", "Daemon started — keeping an eye on things")
+		configPath, _ := engine.ConfigPath()
+		info, statErr := os.Stat(configPath)
+		recentInstall := statErr == nil && time.Since(info.ModTime()) < 30*time.Second
+		if !recentInstall {
+			engine.Notify("Awake", "Daemon started — keeping an eye on things")
+		}
 	}
 
 	// Clean shutdown
