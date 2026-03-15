@@ -33,6 +33,7 @@ type NotificationConfig struct {
 // Config holds all persistent user preferences.
 type Config struct {
 	Workday       WorkdayConfig      `json:"workday"`
+	AutoWorkday   bool               `json:"auto_workday"`
 	Flags         string             `json:"flags"`
 	TimeFormat    string             `json:"time_format"` // "12h" (default) or "24h"
 	Presets       []Preset           `json:"presets"`
@@ -56,7 +57,8 @@ func DefaultConfig() *Config {
 			End:   "17:00",
 			Days:  []int{1, 2, 3, 4, 5},
 		},
-		Flags:      "-dimsu",
+		AutoWorkday: true,
+		Flags:       "-dimsu",
 		TimeFormat: "12h",
 		Presets: []Preset{
 			{Name: "30 minutes", Minutes: 30},
@@ -110,6 +112,9 @@ func LoadConfig() (*Config, error) {
 	if cfg.TimeFormat == "" {
 		cfg.TimeFormat = "12h"
 	}
+	// AutoWorkday defaults to true for new installs, but we can't distinguish
+	// "not set" from "set to false" with a bool. On first load of an old config
+	// this stays false, which is fine — user can enable via TUI options.
 
 	return &cfg, nil
 }

@@ -410,6 +410,7 @@ type optionDef struct {
 
 var optionDefs = []optionDef{
 	{"time_format", "Time format", true},
+	{"auto_workday", "Auto workday", true},
 	{"notifications", "Notifications", true},
 	{"warn_minutes", "Warn before end", false},
 	{"workday_start", "Workday start", false},
@@ -433,6 +434,11 @@ func (m model) optionValue(idx int) string {
 			return "24h"
 		}
 		return "12h"
+	case "auto_workday":
+		if m.cfg.AutoWorkday {
+			return "enabled"
+		}
+		return "disabled"
 	case "notifications":
 		if m.cfg.Notifications.Enabled {
 			return "enabled"
@@ -507,6 +513,8 @@ func (m model) toggleOption(idx int) {
 		} else {
 			m.cfg.TimeFormat = "24h"
 		}
+	case "auto_workday":
+		m.cfg.AutoWorkday = !m.cfg.AutoWorkday
 	case "notifications":
 		m.cfg.Notifications.Enabled = !m.cfg.Notifications.Enabled
 	}

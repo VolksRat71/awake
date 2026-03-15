@@ -62,6 +62,12 @@ func Run() {
 	}
 	log.Println("awaked starting")
 
+	// Startup notification
+	cfg, err := engine.LoadConfig()
+	if err == nil && cfg.Notifications.Enabled {
+		engine.Notify("Awake", "Daemon started — keeping an eye on things")
+	}
+
 	// Clean shutdown
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -107,6 +113,22 @@ func poll() {
 
 			if err := engine.ActivateScheduled(cfg, st); err != nil {
 				log.Printf("failed to activate scheduled window: %v", err)
+			}
+		}
+	}
+
+	// Auto-start workday session if enabled
+	if cfg.AutoWorkday && !engine.IsActive(st) && st.Scheduled == nil {
+		if endTime, err := engine.WorkdayEnd(cfg); err == nil {
+			// We're on a workday and before EOD — start a session
+			log.Printf("auto-starting workday session until %s", endTime.Format("15:04"))
+			opts := engine.StartOpts{
+				Until: endTime,
+				Mode:  "workday",
+				Label: "Workday",
+			}
+			if err := engine.StartSession(cfg, st, opts); err != nil {
+				log.Printf("failed to auto-start workday: %v", err)
 			}
 		}
 	}
