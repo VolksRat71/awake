@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="128" />
+  <img src="assets/icon.png" width="400" />
 </p>
 
 # awake
