@@ -750,7 +750,7 @@ func (m model) viewDashboard() string {
 
 	b.WriteString("\n")
 	days := formatDays(m.cfg.Workday.Days)
-	sched := fmt.Sprintf("%s %s–%s", days, m.cfg.Workday.Start, m.cfg.Workday.End)
+	sched := fmt.Sprintf("%s %s–%s", days, m.formatConfigTime(m.cfg.Workday.Start), m.formatConfigTime(m.cfg.Workday.End))
 	b.WriteString(fmt.Sprintf("  %s  %s\n", labelStyle.Render("Schedule"), valueStyle.Render(sched)))
 
 	if m.state.Scheduled != nil {
@@ -880,10 +880,10 @@ func (m model) viewHistory() string {
 				lbl = h.Mode
 			}
 			b.WriteString(fmt.Sprintf("  %s  %-16s %4dm  %s\n",
-				labelStyle.Render(h.StartedAt.Format("Jan 02 15:04")),
+				labelStyle.Render(h.StartedAt.Format("Jan 02")+" "+m.cfg.FormatTime(h.StartedAt)),
 				valueStyle.Render(lbl),
 				h.Duration,
-				labelStyle.Render("→ "+h.EndedAt.Format("15:04")),
+				labelStyle.Render("→ "+m.cfg.FormatTime(h.EndedAt)),
 			))
 		}
 

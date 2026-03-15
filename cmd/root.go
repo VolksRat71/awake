@@ -68,7 +68,7 @@ var untilCmd = &cobra.Command{
 		}
 
 		remaining := time.Until(target)
-		fmt.Printf("Awake until %s (%s)\n", target.Format("15:04"), engine.FormatDuration(remaining))
+		fmt.Printf("Awake until %s (%s)\n", cfg.FormatTime(target), engine.FormatDuration(remaining))
 		return nil
 	},
 }
@@ -109,7 +109,7 @@ var workdayCmd = &cobra.Command{
 		}
 
 		remaining := time.Until(endTime)
-		fmt.Printf("Awake until %s (%s)\n", endTime.Format("15:04"), engine.FormatDuration(remaining))
+		fmt.Printf("Awake until %s (%s)\n", cfg.FormatTime(endTime), engine.FormatDuration(remaining))
 		return nil
 	},
 }
@@ -151,7 +151,7 @@ var extendCmd = &cobra.Command{
 
 		status := engine.GetStatus(cfg, st)
 		fmt.Printf("Extended by %dm — ends at %s (%s remaining)\n",
-			minutes, status.EndsAt.Format("15:04"), engine.FormatDuration(status.TimeRemaining))
+			minutes, cfg.FormatTime(status.EndsAt), engine.FormatDuration(status.TimeRemaining))
 		return nil
 	},
 }
@@ -239,9 +239,9 @@ var betweenCmd = &cobra.Command{
 		}
 
 		if startTime.Before(time.Now()) || startTime.Equal(time.Now()) {
-			fmt.Printf("Awake now until %s\n", endTime.Format("15:04"))
+			fmt.Printf("Awake now until %s\n", cfg.FormatTime(endTime))
 		} else {
-			fmt.Printf("Scheduled: %s – %s\n", startTime.Format("15:04"), endTime.Format("15:04"))
+			fmt.Printf("Scheduled: %s – %s\n", cfg.FormatTime(startTime), cfg.FormatTime(endTime))
 		}
 		return nil
 	},
@@ -421,7 +421,7 @@ func startManual(minutes int, label string, replace bool) error {
 	}
 
 	endsAt := time.Now().Add(time.Duration(minutes) * time.Minute)
-	fmt.Printf("Awake for %dm (until %s)\n", minutes, endsAt.Format("15:04"))
+	fmt.Printf("Awake for %dm (until %s)\n", minutes, cfg.FormatTime(endsAt))
 	return nil
 }
 
