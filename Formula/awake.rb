@@ -1,16 +1,16 @@
 class Awake < Formula
   desc "macOS CLI + TUI utility to keep your Mac awake"
   homepage "https://github.com/VolksRat71/awake"
-  version "1.0.4"
+  version "1.0.5"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/VolksRat71/awake/releases/download/v1.0.4/awake-v1.0.4-darwin-arm64.tar.gz"
-      sha256 "957b6c9dd60cef8f9270b17d33e9a8a57cb7f6c6c21463b4bcc713c4cece5c4c"
+      url "https://github.com/VolksRat71/awake/releases/download/v1.0.5/awake-v1.0.5-darwin-arm64.tar.gz"
+      sha256 "ee3dc0d1374207dca5c252ca957b877a6852672fe35bfd4afbfc5b32b3ac6ec9"
     else
-      url "https://github.com/VolksRat71/awake/releases/download/v1.0.4/awake-v1.0.4-darwin-amd64.tar.gz"
-      sha256 "db6bc81341475c44611ef1d66393602206337dc1eb59eaa98116d528c798a3e5"
+      url "https://github.com/VolksRat71/awake/releases/download/v1.0.5/awake-v1.0.5-darwin-amd64.tar.gz"
+      sha256 "1ddf64caa047e29f71a759c386a00b617bb4f6986d25b7244d98847994fd6cfd"
     end
   end
 
