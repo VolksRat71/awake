@@ -80,23 +80,67 @@ func InstallNotifierApp() error {
 	return nil
 }
 
+// escapeNotifierArg guards a value passed to terminal-notifier.
+//
+// terminal-notifier reads its flags through the NSUserDefaults argument
+// domain, which parses values as property lists. A value whose first
+// character is [ ( { " or \ is read as the start of a collection or quoted
+// literal, fails to parse, and comes back nil — the notification still posts,
+// but that field is silently empty. Escaping the first character with a
+// backslash makes it parse as a plain string; the backslash is consumed and
+// does not appear in the banner.
+func escapeNotifierArg(s string) string {
+	if s == "" {
+		return s
+	}
+	switch s[0] {
+	case '[', '(', '{', '"', '\\':
+		return "\\" + s
+	}
+	return s
+}
+
+// notifierArgs builds the terminal-notifier argument list for one banner.
+// The label rides in -subtitle rather than being concatenated into the
+// message, so a label can never push a bracket to the front of the body.
+func notifierArgs(title, label, message string) []string {
+	args := []string{
+		"-title", escapeNotifierArg(title),
+		"-message", escapeNotifierArg(message),
+	}
+	if label != "" {
+		args = append(args, "-subtitle", escapeNotifierArg(label))
+	}
+	return append(args, "-group", "com.awake", "-sound", "default")
+}
+
+// osascriptFor builds the AppleScript fallback for one banner.
+func osascriptFor(title, label, message string) string {
+	if label != "" {
+		return fmt.Sprintf(
+			`display notification %q with title %q subtitle %q sound name "default"`,
+			message, title, label)
+	}
+	return fmt.Sprintf(
+		`display notification %q with title %q sound name "default"`,
+		message, title)
+}
+
 // NotifySync sends a notification and waits for delivery. Used during install
 // so the Awake.app gets registered with macOS notification center on first use.
 func NotifySync(title, message string) {
+	NotifySyncWithLabel(title, "", message)
+}
+
+// NotifySyncWithLabel sends a labelled notification and waits for delivery.
+func NotifySyncWithLabel(title, label, message string) {
 	appPath := awakeAppPath()
 	if _, err := os.Stat(appPath); err == nil {
-		exec.Command(awakeAppBinary(),
-			"-title", title,
-			"-message", message,
-			"-group", "com.awake",
-			"-sound", "default",
-			"-sender", "com.awake.notifier",
-		).Run()
+		exec.Command(awakeAppBinary(), notifierArgs(title, label, message)...).Run()
 		return
 	}
 
-	script := fmt.Sprintf(`display notification %q with title %q sound name "default"`, message, title)
-	exec.Command("osascript", "-e", script).Run()
+	exec.Command("osascript", "-e", osascriptFor(title, label, message)).Run()
 }
 
 func findTerminalNotifierApp() (string, error) {
@@ -158,24 +202,23 @@ func pngToIcns(pngPath, icnsPath string) error {
 // notifications when available, falls back to osascript.
 // Runs in a goroutine so it never blocks the caller.
 func Notify(title, message string) {
+	NotifyWithLabel(title, "", message)
+}
+
+// NotifyWithLabel sends a macOS notification with the session label as the
+// banner subtitle. Uses the custom Awake.app for branded notifications when
+// available, falls back to osascript.
+// Runs in a goroutine so it never blocks the caller.
+func NotifyWithLabel(title, label, message string) {
 	go func() {
-		// Try Awake.app — use open -a to launch it properly through macOS
-		// so it gets full notification permissions
 		appPath := awakeAppPath()
 		if _, err := os.Stat(appPath); err == nil {
-			exec.Command(awakeAppBinary(),
-				"-title", title,
-				"-message", message,
-				"-group", "com.awake",
-				"-sound", "default",
-				"-sender", "com.awake.notifier",
-			).Run()
+			exec.Command(awakeAppBinary(), notifierArgs(title, label, message)...).Run()
 			return
 		}
 
 		// Fall back to osascript
-		script := fmt.Sprintf(`display notification %q with title %q sound name "default"`, message, title)
-		exec.Command("osascript", "-e", script).Run()
+		exec.Command("osascript", "-e", osascriptFor(title, label, message)).Run()
 	}()
 }
 
@@ -242,21 +285,14 @@ func RunNotifyWatcher(endsAtStr string, warnMinutesStr string, label string) {
 		time.Sleep(time.Until(warnAt))
 		remaining := time.Until(endsAt)
 		msg := fmt.Sprintf("%d minutes remaining", int(remaining.Minutes()))
-		if label != "" {
-			msg = fmt.Sprintf("[%s] %s", label, msg)
-		}
-		Notify("Awake", msg)
+		NotifyWithLabel("Awake", label, msg)
 	}
 
 	if endsAt.After(time.Now()) {
 		time.Sleep(time.Until(endsAt))
 	}
 
-	msg := "Session ended"
-	if label != "" {
-		msg = fmt.Sprintf("[%s] %s", label, msg)
-	}
-	Notify("Awake", msg)
+	NotifyWithLabel("Awake", label, "Session ended")
 
 	st, err := LoadState()
 	if err == nil && st.Active != nil {

@@ -92,10 +92,7 @@ func StartSession(cfg *Config, st *State, opts StartOpts) error {
 	if cfg.Notifications.Enabled {
 		dur := time.Duration(durationSec) * time.Second
 		msg := fmt.Sprintf("Session started — %s", FormatDuration(dur))
-		if opts.Label != "" {
-			msg = fmt.Sprintf("[%s] %s", opts.Label, msg)
-		}
-		Notify("Awake", msg)
+		NotifyWithLabel("Awake", opts.Label, msg)
 		startNotifyWatcher(endsAt, cfg.Notifications.WarnMinutes, opts.Label)
 	}
 
@@ -122,11 +119,7 @@ func StopSession(cfg *Config, st *State) error {
 	}
 
 	if cfg.Notifications.Enabled {
-		msg := "Session stopped"
-		if label != "" {
-			msg = fmt.Sprintf("[%s] %s", label, msg)
-		}
-		Notify("Awake", msg)
+		NotifyWithLabel("Awake", label, "Session stopped")
 	}
 
 	return nil
@@ -179,10 +172,7 @@ func ExtendSession(cfg *Config, st *State, minutes int) error {
 	if cfg.Notifications.Enabled {
 		remaining := time.Until(newEndsAt)
 		msg := fmt.Sprintf("Extended by %dm — %s remaining", minutes, FormatDuration(remaining))
-		if st.Active.Label != "" {
-			msg = fmt.Sprintf("[%s] %s", st.Active.Label, msg)
-		}
-		Notify("Awake", msg)
+		NotifyWithLabel("Awake", st.Active.Label, msg)
 		startNotifyWatcher(newEndsAt, cfg.Notifications.WarnMinutes, st.Active.Label)
 	}
 
@@ -299,10 +289,7 @@ func ScheduleWindow(cfg *Config, st *State, startsAt, endsAt time.Time, label st
 
 	if cfg.Notifications.Enabled {
 		msg := fmt.Sprintf("Scheduled %s – %s", cfg.FormatTime(startsAt), cfg.FormatTime(endsAt))
-		if label != "" {
-			msg = fmt.Sprintf("[%s] %s", label, msg)
-		}
-		Notify("Awake", msg)
+		NotifyWithLabel("Awake", label, msg)
 	}
 
 	return nil
