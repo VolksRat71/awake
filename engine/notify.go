@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -126,6 +127,56 @@ func osascriptFor(title, label, message string) string {
 		message, title)
 }
 
+// notifyTimeout caps how long a single banner may take to deliver, so a hung
+// notifier can never wedge a CLI command or the daemon loop.
+const notifyTimeout = 5 * time.Second
+
+// deliver sends one banner and blocks until it is delivered or times out.
+// It prefers the branded Awake.app bundle and falls back to osascript when
+// that bundle is missing or fails outright, so a half-built bundle degrades
+// to a plain banner instead of silence.
+func deliver(title, label, message string) {
+	// Stat the binary, not the .app directory: InstallNotifierApp can leave a
+	// bundle behind whose executable never made it in.
+	bin := awakeAppBinary()
+	if _, err := os.Stat(bin); err == nil {
+		switch run(bin, notifierArgs(title, label, message)...) {
+		case resultOK, resultTimeout:
+			// resultTimeout: terminal-notifier is known to hang on exit after
+			// posting (julienXX/terminal-notifier#301). The banner is most
+			// likely already on screen, so do not post a duplicate.
+			return
+		}
+	}
+
+	run("osascript", "-e", osascriptFor(title, label, message))
+}
+
+type notifyResult int
+
+const (
+	resultOK notifyResult = iota
+	resultFailed
+	resultTimeout
+)
+
+// run executes a notifier command under notifyTimeout and reports whether it
+// succeeded, failed outright, or had to be killed.
+func run(name string, args ...string) notifyResult {
+	ctx, cancel := context.WithTimeout(context.Background(), notifyTimeout)
+	defer cancel()
+
+	err := exec.CommandContext(ctx, name, args...).Run()
+	switch {
+	case err == nil:
+		return resultOK
+	case ctx.Err() != nil:
+		return resultTimeout
+	default:
+		return resultFailed
+	}
+}
+
 // NotifySync sends a notification and waits for delivery. Used during install
 // so the Awake.app gets registered with macOS notification center on first use.
 func NotifySync(title, message string) {
@@ -134,13 +185,7 @@ func NotifySync(title, message string) {
 
 // NotifySyncWithLabel sends a labelled notification and waits for delivery.
 func NotifySyncWithLabel(title, label, message string) {
-	appPath := awakeAppPath()
-	if _, err := os.Stat(appPath); err == nil {
-		exec.Command(awakeAppBinary(), notifierArgs(title, label, message)...).Run()
-		return
-	}
-
-	exec.Command("osascript", "-e", osascriptFor(title, label, message)).Run()
+	deliver(title, label, message)
 }
 
 func findTerminalNotifierApp() (string, error) {
@@ -200,7 +245,6 @@ func pngToIcns(pngPath, icnsPath string) error {
 
 // Notify sends a macOS notification. Uses the custom Awake.app for branded
 // notifications when available, falls back to osascript.
-// Runs in a goroutine so it never blocks the caller.
 func Notify(title, message string) {
 	NotifyWithLabel(title, "", message)
 }
@@ -208,18 +252,12 @@ func Notify(title, message string) {
 // NotifyWithLabel sends a macOS notification with the session label as the
 // banner subtitle. Uses the custom Awake.app for branded notifications when
 // available, falls back to osascript.
-// Runs in a goroutine so it never blocks the caller.
+//
+// This blocks until delivery (capped at notifyTimeout). It used to run in a
+// goroutine, which let short-lived CLI commands like start/stop/extend exit
+// before the notifier had been spawned.
 func NotifyWithLabel(title, label, message string) {
-	go func() {
-		appPath := awakeAppPath()
-		if _, err := os.Stat(appPath); err == nil {
-			exec.Command(awakeAppBinary(), notifierArgs(title, label, message)...).Run()
-			return
-		}
-
-		// Fall back to osascript
-		exec.Command("osascript", "-e", osascriptFor(title, label, message)).Run()
-	}()
+	deliver(title, label, message)
 }
 
 func watcherPidPath() string {
