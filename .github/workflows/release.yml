@@ -24,9 +24,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinning an old toolchain here shipped a binary macOS 26 refuses to
+      # launch: Go 1.22's linker omits LC_UUID under -s -w, and dyld rejects
+      # the result with "missing LC_UUID load command". Build with a current
+      # toolchain; go.mod still declares 1.22 as the language minimum.
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
 
       - name: Build
         env:
@@ -36,6 +40,29 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           go build -ldflags="-s -w" -o awake .
+
+          # A stripped build that dyld will not load is worse than no release,
+          # and it is invisible until someone installs it. Verify the load
+          # command is there, and actually launch the native slice.
+          python3 - awake <<'EOF'
+          import struct, sys
+          data = open(sys.argv[1], 'rb').read()
+          ncmds = struct.unpack_from('<I', data, 16)[0]
+          off = 32
+          for _ in range(ncmds):
+              cmd, size = struct.unpack_from('<II', data, off)
+              if cmd == 0x1b:
+                  print("LC_UUID present:", data[off + 8:off + 24].hex())
+                  sys.exit(0)
+              off += size
+          sys.exit("LC_UUID missing - dyld on macOS 26+ will refuse to launch this binary")
+          EOF
+
+          if [ "$GOARCH" = "$(go env GOHOSTARCH)" ]; then
+            ./awake --help > /dev/null
+            echo "smoke test passed: binary launches"
+          fi
+
           tar czf "awake-${TAG}-${SUFFIX}.tar.gz" awake
           shasum -a 256 "awake-${TAG}-${SUFFIX}.tar.gz" > "awake-${TAG}-${SUFFIX}.tar.gz.sha256"
 
